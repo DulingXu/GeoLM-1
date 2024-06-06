@@ -231,3 +231,69 @@ func assertConfStatesEquivalent(l Logger, cs1, cs2 pb.ConfState) {
 	}
 	l.Panic(err)
 }
+
+// 集合数据结构用于根据效用的计算选取最优节点，并且实现阻尼机制
+// Set 表示一个 uint64 类型的集合
+type Set struct {
+	elements map[uint64]struct{}
+}
+
+// NewSet 创建一个新的空集合
+func NewSet() *Set {
+	return &Set{elements: make(map[uint64]struct{})}
+}
+
+// Add 向集合中添加元素
+func (s *Set) Add(item uint64) {
+	s.elements[item] = struct{}{}
+}
+
+// Remove 从集合中删除元素
+func (s *Set) Remove(item uint64) {
+	delete(s.elements, item)
+}
+
+// Contains 判断元素是否在集合中
+func (s *Set) Contains(item uint64) bool {
+	_, exists := s.elements[item]
+	return exists
+}
+
+// Size 返回集合的大小
+func (s *Set) Size() int {
+	return len(s.elements)
+}
+
+// Union 返回两个集合的并集
+func (s *Set) Union(other *Set) *Set {
+	result := NewSet()
+	for item := range s.elements {
+		result.Add(item)
+	}
+	for item := range other.elements {
+		result.Add(item)
+	}
+	return result
+}
+
+// Intersection 返回两个集合的交集
+func (s *Set) Intersection(other *Set) *Set {
+	result := NewSet()
+	for item := range s.elements {
+		if other.Contains(item) {
+			result.Add(item)
+		}
+	}
+	return result
+}
+
+// Difference 返回集合的差集（当前集合减去另一个集合）
+func (s *Set) Difference(other *Set) *Set {
+	result := NewSet()
+	for item := range s.elements {
+		if !other.Contains(item) {
+			result.Add(item)
+		}
+	}
+	return result
+}
