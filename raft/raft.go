@@ -330,8 +330,7 @@ type raft struct {
 	preVote     bool
 
 	// True represents simulation
-	networkSimulation           bool
-	this_is_a_testing_varialble bool
+	networkSimulation bool
 
 	heartbeatTimeout int
 	electionTimeout  int
@@ -345,11 +344,31 @@ type raft struct {
 	rttprobeTimeout       int
 	leaderTransferTimeout int
 
+	// 当前时间窗口下
+
 	// 保存和其他节点的Rtt
 	rttMap     map[uint64]RttMetaInfo
 	rttMap_old map[uint64]RttMetaInfo
 	//用于保存任意两节点之间的网络信息矩阵
 	nodeLatency map[uint64]map[uint64]int64
+
+	//	阻尼节点选择机制相关变量
+
+	// utility calculation timeout
+	utilityCalcTimeout int
+
+	// counters for utility calc
+	utilityCalcElapsed int
+
+	// population & request distribution for nodes in cluster
+	population      map[uint64]float64
+	reqDistribution map[uint64]float64
+
+	// size of selection window
+	selectWindowSize uint64
+
+	// target nodes set for current selection window
+	utilityPositiveNodeSet Set
 
 	tick func()
 	step stepFunc
@@ -761,6 +780,7 @@ func (r *raft) tickHeartbeat() {
 					r.logger.Infof("no best node.")
 				} else {
 					r.activeTransferLeadership(BestNode)
+					r.selectWindowSize = r.selectWindowSize * 2
 				}
 
 			}
@@ -1303,7 +1323,7 @@ func stepLeader(r *raft, m pb.Message) error {
 					r.nodeLatency[m.From] = make(map[uint64]int64)
 				}
 				r.nodeLatency[m.From][id] = value
-				r.logger.Infof("lwm test Rtt from %v to %v is %d us.", id, m.From, value)
+				// r.logger.Infof("lwm test Rtt from %v to %v is %d us.", id, m.From, value)
 			}
 		}
 
@@ -1523,11 +1543,11 @@ func (r *raft) handleHeartbeat(m pb.Message) {
 	rttMapInfo := make(map[uint64]int64)
 	for id, value := range r.rttMap {
 		if value.timeStamp == 0 {
-			r.logger.Infof("lwm test send Rttinfo from %v to %v is %d us. value is 0", id, m.From, value.timeStamp)
+			// r.logger.Infof("lwm test send Rttinfo from %v to %v is %d us. value is 0", id, m.From, value.timeStamp)
 			continue
 		}
 		rttMapInfo[id] = value.timeStamp
-		r.logger.Infof("lwm test send Rttinfo from %v to %v is %d us.", id, m.From, value.timeStamp)
+		// r.logger.Infof("lwm test send Rttinfo from %v to %v is %d us.", id, m.From, value.timeStamp)
 	}
 	rttmMapBytes, err := json.Marshal(rttMapInfo)
 	//r.logger.Infof("lwm send rttMapBytes" + string(rttmMapBytes))
@@ -1982,11 +2002,13 @@ func (r *raft) CalBetterNodes() []uint64 {
 	}
 	return BetterN
 }
+
+// TODO Here needs to modified to DUMPING function.
 func (r *raft) CalBestNode(BetterN []uint64) uint64 {
 	//计算领导者节点的rtt中位数和平均数
 	leaderRTTInfo := make([]int64, 0)
 	n := len(r.prs.VoterNodes())
-	r.logger.Infof("lwm test node num n is %d.", n)
+	// r.logger.Infof("lwm test node num n is %d.", n)
 	BestNode := r.id
 	var BestNodeIncome float64
 	for _, rttmapinfo := range r.rttMap {
@@ -2039,6 +2061,55 @@ func (r *raft) CalBestNode(BetterN []uint64) uint64 {
 		}
 		return BestNode
 	}
+
+}
+
+func medianForLeader(RTT [][]float64, leader int) float64 {
+	var nums []float64
+
+	for i := 1; i < len(RTT[0]); i++ {
+		if i != leader {
+			nums = append(nums, RTT[leader][i])
+		}
+	}
+
+	// 先将切片排序
+	sort.Float64s(nums)
+
+	n := len(nums)
+	if n%2 == 1 {
+		// 如果切片大小为奇数，则返回中间元素
+		return nums[n/2]
+	} else {
+		// 如果切片大小为偶数，则返回中间两个元素的平均值
+		return (nums[n/2-1] + nums[n/2]) / 2.0
+	}
+}
+
+func calcUtilityI(RTT [][]float64, population map[uint64]float64, reqDistribution map[uint64]float64, oldLeader int, newLeader int) float64 {
+	var resUtility float64
+	var i uint64
+	for i = 1; i < uint64(len(RTT[0])); i++ {
+		var tmp float64
+		tmp += RTT[oldLeader][i] - RTT[newLeader][i]
+		tmp += reqDistribution[i] * (medianForLeader(RTT, oldLeader) - medianForLeader(RTT, newLeader))
+		resUtility += tmp * population[i]
+	}
+
+	return resUtility
+}
+
+func calcPositiveUtilitySet(RTT [][]float64, population map[uint64]float64, reqDistribution map[uint64]float64, oldLeader int) Set {
+	resultSet := NewSet()
+	var new_leader uint64
+	var resUtility float64
+	for new_leader = 1; new_leader < uint64(len(RTT[0])); new_leader++ {
+		resUtility = calcUtilityI(RTT, population, reqDistribution, oldLeader, int(new_leader))
+		if resUtility > 0 {
+			resultSet.Add(new_leader)
+		}
+	}
+	return *resultSet
 
 }
 
