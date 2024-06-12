@@ -7,6 +7,7 @@
 #   make clean
 #   make docker-clean
 #   make docker-start
+#   sudo make docker-start
 #   make docker-kill
 #   make docker-remove
 
