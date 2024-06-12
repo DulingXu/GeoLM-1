@@ -1,7 +1,5 @@
 # run from repository root
 
-
-
 # Example:
 #   make build
 #   make clean
@@ -11,7 +9,8 @@
 #   make docker-kill
 #   make docker-remove
 
-.PHONY: build
+#   about build: objection
+.PHONY: 
 build:
 	GO_BUILD_FLAGS="-v" ./build
 	./bin/glee-etcd --version
@@ -35,7 +34,7 @@ clean:
 	rm -f ./integration/127.0.0.1:* ./integration/localhost:*
 	rm -f ./clientv3/integration/127.0.0.1:* ./clientv3/integration/localhost:*
 	rm -f ./clientv3/ordering/127.0.0.1:* ./clientv3/ordering/localhost:*
-
+	
 docker-clean:
 	docker images
 	docker image prune --force
@@ -49,8 +48,6 @@ docker-kill:
 docker-remove:
 	docker rm --force `docker ps -a -q` || true
 	docker rmi --force `docker images -q` || true
-
-
 
 GO_VERSION ?= 1.20.8
 ETCD_VERSION ?= $(shell git rev-parse --short HEAD || echo "GitNotFound")

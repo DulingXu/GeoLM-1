@@ -355,6 +355,7 @@ type raft struct {
 	//	阻尼节点选择机制相关变量
 
 	// utility calculation timeout
+	// 当前经过了多少个效用计算周期，作用是用于与selection window进行比较
 	utilityCalcTimeout int
 
 	// counters for utility calc
@@ -754,6 +755,9 @@ func (r *raft) tickElection() {
 }
 
 // tickHeartbeat is run by leaders to send a MsgBeat after r.heartbeatTimeout.
+// before: calculate when heartbeatTimeout
+// duling to do ,每次经过一个周期就进行一次计算，统计过往周期内每次效用大于0的集合，做一次集合的合并
+// 集合出来的点集合，就是可以选择的点
 func (r *raft) tickHeartbeat() {
 	r.heartbeatElapsed++
 	r.electionElapsed++
@@ -770,11 +774,13 @@ func (r *raft) tickHeartbeat() {
 		r.leaderTransferElapsed = 0
 		if r.Determine_network_deterioration() {
 			//寻找最优节点
+			//由 CalBetterNodes() 函数决定
 			BetterN := r.CalBetterNodes()
 			if len(BetterN) == 0 {
 				r.logger.Infof("no better node.")
 			} else {
 				//切换收益模型
+				//选择出最佳节点
 				BestNode := r.CalBestNode(BetterN)
 				if BestNode == r.id {
 					r.logger.Infof("no best node.")
@@ -2003,9 +2009,10 @@ func (r *raft) CalBetterNodes() []uint64 {
 	return BetterN
 }
 
-// TODO Here needs to modified to DUMPING function.
+// TODO Here needs to modify DUMPING function.
+// xdl: 计算最优领导者节点
 func (r *raft) CalBestNode(BetterN []uint64) uint64 {
-	//计算领导者节点的rtt中位数和平均数
+	//初始版本：计算领导者节点的rtt中位数和平均数
 	leaderRTTInfo := make([]int64, 0)
 	n := len(r.prs.VoterNodes())
 	// r.logger.Infof("lwm test node num n is %d.", n)
@@ -2017,7 +2024,7 @@ func (r *raft) CalBestNode(BetterN []uint64) uint64 {
 		}
 	}
 	if len(leaderRTTInfo) < n/2 {
-		r.logger.Infof("lwm leader hasn't enough rtt info")
+		r.logger.Infof("leader hasn't enough rtt info")
 		return BestNode
 	} else {
 		leader_median := calculateMedian(leaderRTTInfo, n)
@@ -2086,6 +2093,9 @@ func medianForLeader(RTT [][]float64, leader int) float64 {
 	}
 }
 
+// xdl: 用于计算点 i 的效用
+// 热度和负载均衡度
+// dulingtodo：put them into leader election logically
 func calcUtilityI(RTT [][]float64, population map[uint64]float64, reqDistribution map[uint64]float64, oldLeader int, newLeader int) float64 {
 	var resUtility float64
 	var i uint64
