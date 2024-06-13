@@ -1,0 +1,13 @@
+Maybe you need to do some pre-preparation before you can use the test script
+
+# The go environment is necessary
+
+# The tc tool is also necessary to set up in the container
+
+You can check and install tc by running the script tool_check.py, which contains an operation to check and install three containers. You can also install it manually.
+The installation requirements and precautions can also be found in the script.
+
+
+```bash
+python3 tool_check.py
+```

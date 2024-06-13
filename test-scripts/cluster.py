@@ -1,11 +1,21 @@
+"""
+1. should be executed in root.
+
+2. Develop based on docker
+
+3. Defines a Cluster class for managing network latency settings in Docker containers.
+
+4. By using the tc command (Traffic Control), simulate different network latency between containers.
+
+- Initialize network latency configuration
+- Dynamically adjust network latency
+- Load latency data based on time series
+
+"""
+
 import subprocess
 import time
 from TimeSeries import LatencyTimeSeries
-
-# This should be executed in root.  --zdf
-
-# Develop based on docker 
-
 
 class Cluster:
     def __init__(self):
@@ -38,11 +48,33 @@ class Cluster:
             # 命令执行失败
             print("Error executing command:", e)
 
+    # def clean_all_tc_conf(self):
+    #     for i in self.node_list:
+    #         cmd="docker exec "+i+" tc qdisc del dev eth0 root"
+    #         # print(cmd)
+    #         self.run_docker_command(command=cmd)
+            
     def clean_all_tc_conf(self):
         for i in self.node_list:
-            cmd="docker exec "+i+" tc qdisc del dev eth0 root"
-            # print(cmd)
-            self.run_docker_command(command=cmd)
+            # 检查当前 qdisc 配置
+            cmd_check = "docker exec " + i + " tc qdisc show dev eth0"
+            result_check = subprocess.run(cmd_check, shell=True, capture_output=True, text=True)
+            if result_check.returncode == 0 and "noqueue" not in result_check.stdout:
+                cmd_del = "docker exec " + i + " tc qdisc del dev eth0 root"
+                self.run_docker_command(command=cmd_del)
+            else:
+                print(f"\n No need to delete :  ")
+                print(f" There is no qdisc configuration in container {i} or the qdisc configuration cannot be obtained.")
+
+    """
+    qdisc is a term used in the Linux kernel for traffic control 
+    and stands for "Queueing Discipline". 
+
+    qdiscs are part of the Traffic Control (tc) system 
+    and are used to manage outbound traffic on network interfaces. 
+    They define how packets are queued and transmitted on a network interface.
+
+    """
 
     def add_qdisc_for_all_node(self):
         for i in self.node_list:
@@ -50,16 +82,23 @@ class Cluster:
             # print(cmd)
             self.run_docker_command(command=cmd)
 
+    # 检查 时延矩阵 和 节点数量 匹配
     def add_latency(self):
         if len(self.node_list)!=len(self.latency_matrix) or len(self.node_list) !=len(self.latency_matrix[0]):
             print("Node number and mat len must match!")
             return
-        # print(self.latency_matrix)
-        # print(self.node_list)
+        print("\n")
+        print(self.latency_matrix)
+        print(self.node_list)
+        
+        # 假设时延为上三角矩阵，遍历对每个节点配置网络时延
         for i in range(len(self.node_list)-1):
             for j in range(i+1,len(self.latency_matrix[i])):
                 tmp_latency = self.latency_matrix[i][j]
                 # print(tmp_latency)
+                # 设置好节点  i -> j 时延
+                
+                # docker 配置
                 tmp_parent=j+2
                 tmp_handle=j+11
                 cmd="docker exec "+self.node_list[i]+" tc qdisc add dev eth0 parent 1:"+str(tmp_parent)+" handle "+str(tmp_handle)+": netem delay "+str(tmp_latency)+"ms 5ms"
@@ -68,7 +107,9 @@ class Cluster:
 
                 cmd="docker exec "+self.node_list[i]+" tc filter add dev eth0 protocol ip parent 1:0 prio 4 u32 match ip dst \'"+self.ips[j]+"\' flowid 1:"+str(tmp_parent)
                 # print(cmd)
+            
                 self.run_docker_command(command=cmd)
+    
     def change_latency(self):
         if len(self.node_list)!=len(self.latency_matrix) or len(self.node_list) !=len(self.latency_matrix[0]):
             print("Node number and mat len must match!")
