@@ -18,10 +18,8 @@ import subprocess
 
 
 from cluster import Cluster
-# from TimeSeries import LatencyTimeSeries
-# This should be executed in root.  --zdf
-
-# python3 one-round.py
+# from TimeSeries import LatencyTimeSeriesz
+# sudo python3 one-round.py
 
 
 node_list = ['glee1', 'glee2', 'glee3']
@@ -37,6 +35,10 @@ ips = ['192.168.37.11','192.168.37.12','192.168.37.13']
 #         print(f"`tc` 在容器 {container} 中已安装")
         
 
+def ensure_directory(directory):
+    os.makedirs(directory, exist_ok=True)
+    os.chmod(directory, 0o755)  # 设置目录权限
+    
 # xdl:need update the trace file here
 trace_file = "./data2.json"
 result_dir = "./tmp/result/"
@@ -116,30 +118,29 @@ def runCluster():
 
 
 def ycsb_load():
-    command = f"go-ycsb load etcd -P ./basic.properties  -P ./workloads/workloadc -p threadcount=20 -p recordcount=100000 -p operationcount=40000 > ./tmp/ycsb-load-output.log"
+    command = f"go-ycsb load etcd -P ./basic.properties  -P ../../go-ycsb/workloads/workloadc -p threadcount=20 -p recordcount=10000 -p operationcount=9999 > /home/chenzheng/dl/output/ycsb-load-output-1.log"
     subprocess.run(command, shell=True)
 
 def ycsb_run(isRaw = False):
     if isRaw:
-        
-        command = f"go-ycsb run etcd -P ./basic.properties  -P ./workloads/workloadc -p threadcount=20 -p recordcount=100000 -p operationcount=50000 -p  measurementtype=raw > ./tmp/ycsb-run-output-raw.log"
+        command = f"go-ycsb run etcd -P ./basic.properties  -P ../../go-ycsb/workloads/workloadc -p threadcount=20 -p recordcount=10000 -p operationcount=9999 -p  measurementtype=raw > /home/chenzheng/dl/output/ycsb-run-output-raw-1w.log"
     else:
-        command = f"go-ycsb run etcd -P ./basic.properties  -P ./workloads/workloadc -p threadcount=20 -p recordcount=100000 -p operationcount=50000  > ./tmp/ycsb-run-output.log"
+        command = f"go-ycsb run etcd -P ./basic.properties  -P ../../go-ycsb/workloads/workloadc -p threadcount=20 -p recordcount=10000 -p operationcount=9999  > /home/chenzheng/dl/output/ycsb-run-output.log"
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
 
-#完整实验示例，expr1:
+# 完整实验示例，expr1:
 def expr1():
     containers = ["glee1","glee2", "glee3"]
     print('\n - - -  "glee1","glee2", "glee3"  - - -')
 
-    #清空时延
+    # 清空时延
     resetCluster()
     print('\n - - - Delay has been cleared - - -')
-    #载入数据
-    # ycsb_load()
-    #初始化时延
+    # 载入数据
+    # 初始化时延
     initCluster()
     print('\n - - - The cluster has been initialized - - -')
+    # 初始化时间，等待时延设置
     time.sleep(0.5)
 
     # 创建线程列表
@@ -154,6 +155,7 @@ def expr1():
     #添加ycsb工作线程
     ycsb_thread = threading.Thread(target=ycsb_run, args=(True,))
     threads.append(ycsb_thread)
+    print('\n - - - Ycsb_thread apending - - -')
     # ycsb_thread.start()
 
     # 添加网络状况收集线程
@@ -166,14 +168,18 @@ def expr1():
                 # thread.start()
     
     # 启动所有线程
+    print('\n - - - thread starting - - -')
     for thread in threads:
         thread.start()
-
+    print('\n - - - thread started - - -')
+    
     # 等待所有线程结束
     for thread in threads:
         thread.join()
+    print('\n - - - all threads finished - - -')
     
-    #实验最后将所有的时延复原
+    # 实验最后将所有的时延复原
+    print('\n - - - reset cluster  - - -')
     resetCluster()
 
 
@@ -192,17 +198,53 @@ def expr2():
     my_cluster.set_node_list(node_list=node_list)
     my_cluster.set_ips(ips=ips)
     my_cluster.set_latency(latency_mat=matrix2)
+    print('Set latency … … ')
 
     my_cluster.clean_all_tc_conf()
     my_cluster.add_qdisc_for_all_node()
     my_cluster.add_latency()
 
 
-    command = f"go-ycsb run etcd -P ./basic.properties  -P ./workloads/workloadc -p threadcount=20 -p recordcount=100000 -p operationcount=30000 -p  measurementtype=raw > ./tmp/ycsb-run-output-raw-3.log"
+    command = f"go-ycsb run etcd -P ./basic.properties  -P ./workloads/workloadc -p threadcount=20 -p recordcount=100000 -p operationcount=30000 -p  measurementtype=raw > ./ycsb-run-output-raw-expr2.log"
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
-    my_cluster.clean_all_tc_conf()
-
+    print('\n  - - - to : ./tmp/ycsb-run-output-raw-expr2.log - - -  ')
 
 if __name__ == "__main__":
     expr1()
-    # expr2()
+    #expr2()
+    
+    
+
+# # 自定义时延执行自定义命令
+# def expr2():
+#     containers = ["glee1","glee2", "glee3"]
+
+#     # 定义一个 3x3 的二维矩阵
+#     matrix2 = [
+#         [0.0, 20.0, 30.0],
+#         [20.0, 0.0, 50.0],
+#         [30.0, 50.0, 0.0]
+#     ]
+#     my_cluster = Cluster()
+#     my_cluster.set_node_list(node_list=node_list)
+#     my_cluster.set_ips(ips=ips)
+#     my_cluster.set_latency(latency_mat=matrix2)
+#     print('Set latency … … ')
+#     my_cluster.clean_all_tc_conf()
+#     my_cluster.add_qdisc_for_all_node()
+#     my_cluster.add_latency()
+
+#     # command = f"go-ycsb run etcd -P ./basic.properties  -P ./workloads/workloadc -p threadcount=20 -p recordcount=100000 -p operationcount=30000 -p  measurementtype=raw > ./tmp/ycsb-run-output-raw-3.log"
+#     # result = subprocess.run(command, shell=True, capture_output=True, text=True)
+#     # print('\n  - - - to : ./tmp/ycsb-run-output-raw-3.log - - -  ')
+#     # my_cluster.clean_all_tc_conf()
+    
+#     output_file = './tmp/ycsb-run-output-raw-expr2.log'
+#     ensure_directory(os.path.dirname(output_file))  # 确保目录存在并可写
+#     command = "go-ycsb run etcd -P ./basic.properties -P ./workloads/workloadc -p threadcount=20 -p recordcount=100000 -p operationcount=30000 -p measurementtype=raw > " + output_file
+#     # command = f"go-ycsb run etcd -P ./basic.properties  -P ./workloads/workloadc -p threadcount=20 -p recordcount=100000 -p operationcount=30000 -p  measurementtype=raw > ./tmp/ycsb-run-output-raw-3.log"
+#     result = subprocess.run(command, shell=True, capture_output=True, text=True)
+#     print('Return Code:', result.returncode)
+#     print('STDERR:', result.stderr)
+#     print('\n  - - - to : ./tmp/ycsb-run-output-raw-expr2.log - - -  ')
+#     my_cluster.clean_all_tc_conf()
