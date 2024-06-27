@@ -9,5 +9,20 @@ The installation requirements and precautions can also be found in the script.
 
 
 ```bash
+
 python3 tool_check.py
+
 ```
+
+# About run_glee_etcd.sh
+这段命令用于启动一个新的 etcd 集群，
+并启用性能分析工具 pprof。
+它指定了集群的初始节点及其通信地址，
+以及节点的监听地址。
+通过这些配置，可以在新的集群环境中启动 etcd 服务并进行性能调试和优化。
+
+
+
+
+
+

@@ -8,6 +8,8 @@ Use go-ycsb to execute load and run commands.
 Manage multiple threads to perform these tasks in parallel.
 
 """
+# python3 one-round.py
+
 import os
 import threading
 import subprocess
@@ -19,9 +21,9 @@ import subprocess
 
 from cluster import Cluster
 # from TimeSeries import LatencyTimeSeriesz
-# sudo python3 one-round.py
 
 
+# 需要提前准备 docker，创建对应的 glee# 容器
 node_list = ['glee1', 'glee2', 'glee3']
 ips = ['192.168.37.11','192.168.37.12','192.168.37.13']
 
@@ -34,10 +36,10 @@ ips = ['192.168.37.11','192.168.37.12','192.168.37.13']
 #     else:
 #         print(f"`tc` 在容器 {container} 中已安装")
         
-
+# 确保目录存在且设置目录权限
 def ensure_directory(directory):
     os.makedirs(directory, exist_ok=True)
-    os.chmod(directory, 0o755)  # 设置目录权限
+    os.chmod(directory, 0o755)  
     
 # xdl:need update the trace file here
 trace_file = "./data2.json"
@@ -61,7 +63,7 @@ def ping_container(source_container, target_container, output_file):
     # 确保输出目录存在
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
-    # 将时延信息写入输出文件
+    # 将时延信息写入输出文件，用于检查实际控制时延是否按照设定运行
     with open(output_file, "w") as file:
         for i, (delay, _) in enumerate(delays):
             file.write(str(i) + "," + delay + "\n")
@@ -118,14 +120,14 @@ def runCluster():
 
 
 def ycsb_load():
-    command = f"go-ycsb load etcd -P ./basic.properties  -P ../../go-ycsb/workloads/workloadc -p threadcount=20 -p recordcount=10000 -p operationcount=9999 > /home/chenzheng/dl/output/ycsb-load-output-1.log"
+    command = f"etcd -P ./basic.properties  -P ../../go-ycsb/workloads/workloadc -p threadcount=20 -p recordcount=10000 -p operationcount=9999 > /home/chenzheng/dl/output/ycsb-load-output-1.log"
     subprocess.run(command, shell=True)
 
 def ycsb_run(isRaw = False):
     if isRaw:
-        command = f"go-ycsb run etcd -P ./basic.properties  -P ../../go-ycsb/workloads/workloadc -p threadcount=20 -p recordcount=10000 -p operationcount=9999 -p  measurementtype=raw > /home/chenzheng/dl/output/ycsb-run-output-raw-1w.log"
+        command = f"go-ycsb run etcd -P ./basic.properties  -P ../../go-ycsb/workloads/workloada -p threadcount=20 -p recordcount=10000 -p operationcount=100000 -p  measurementtype=raw > /home/chenzheng/dl/output/ycsb-run-output-raw-10w-3nodes-a.log"
     else:
-        command = f"go-ycsb run etcd -P ./basic.properties  -P ../../go-ycsb/workloads/workloadc -p threadcount=20 -p recordcount=10000 -p operationcount=9999  > /home/chenzheng/dl/output/ycsb-run-output.log"
+        command = f"go-ycsb run etcd -P ./basic.properties  -P ../../go-ycsb/workloads/workloada -p threadcount=20 -p recordcount=10000 -p operationcount=9999  > /home/chenzheng/dl/output/ycsb-run-output.log"
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
 
 # 完整实验示例，expr1:
@@ -213,7 +215,28 @@ if __name__ == "__main__":
     expr1()
     #expr2()
     
+
+"""
+    etcd 
     
+    -P ./basic.properties  
+    
+    -P ../../go-ycsb/workloads/workloadc 
+    
+    -p threadcount=20 
+    
+    -p recordcount=10000 
+    
+    -p operationcount=9999 
+    
+    > /home/chenzheng/dl/output/ycsb-load-output-1.log
+    
+    工作负载 a b c d
+    线程数 <= 20
+    记录数据 >= 操作数据
+    输出路径输出文件
+    
+    """
 
 # # 自定义时延执行自定义命令
 # def expr2():

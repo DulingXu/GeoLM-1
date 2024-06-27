@@ -27,6 +27,84 @@ import (
 	"go.etcd.io/etcd/raft/tracker"
 )
 
+func TestInitialWindowSize(t *testing.T) {
+    config := Config{
+        ID:                    1,
+        ElectionTick:          10,
+        HeartbeatTick:         1,
+        MaxSizePerMsg:         1024 * 1024,
+        MaxUncommittedEntriesSize: 1024 * 1024,
+        MaxInflightMsgs:       256,
+        Storage:               NewMemoryStorage(),
+        Logger:                DefaultLogger(),
+    }
+
+    r := newRaft(&config)
+    if r.selectWindowSize != 2 {
+        t.Errorf("expected initial selectWindowSize to be 2, got %d", r.selectWindowSize)
+    }
+}
+
+func TestTransferLeadership(t *testing.T) {
+    config := Config{
+        ID:                    1,
+        ElectionTick:          10,
+        HeartbeatTick:         1,
+        MaxSizePerMsg:         1024 * 1024,
+        MaxUncommittedEntriesSize: 1024 * 1024,
+        MaxInflightMsgs:       256,
+        Storage:               NewMemoryStorage(),
+        Logger:                DefaultLogger(),
+    }
+
+    r := newRaft(&config)
+    r.becomeLeader()
+
+    transferee := uint64(2)
+    r.activeTransferLeadership(transferee)
+
+    if r.leadTransferee != transferee {
+        t.Errorf("expected leadTransferee to be %d, got %d", transferee, r.leadTransferee)
+    }
+}
+
+
+func TestAdjustWindowSize(t *testing.T) {
+    config := Config{
+        ID:                    1,
+        ElectionTick:          10,
+        HeartbeatTick:         1,
+        MaxSizePerMsg:         1024 * 1024,
+        MaxUncommittedEntriesSize: 1024 * 1024,
+        MaxInflightMsgs:       256,
+        Storage:               NewMemoryStorage(),
+        Logger:                DefaultLogger(),
+    }
+
+    r := newRaft(&config)
+    r.becomeLeader()
+
+    initialWindowSize := r.selectWindowSize
+
+    // Simulate leader transfer to adjust window size
+    transferee := uint64(2)
+    r.activeTransferLeadership(transferee)
+
+    // Check if window size doubled
+    if r.selectWindowSize != initialWindowSize*2 {
+        t.Errorf("expected selectWindowSize to be %d, got %d", initialWindowSize*2, r.selectWindowSize)
+    }
+
+    // Simulate election timeout to adjust window size back
+    r.electionElapsed = r.electionTimeout
+    r.adjustWindowSize()
+
+    if r.selectWindowSize != initialWindowSize {
+        t.Errorf("expected selectWindowSize to be %d, got %d", initialWindowSize, r.selectWindowSize)
+    }
+}
+
+
 // nextEnts returns the appliable entries and updates the applied index
 func nextEnts(r *raft, s *MemoryStorage) (ents []pb.Entry) {
 	// Transfer all unstable entries to "stable" storage.
